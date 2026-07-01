@@ -1,0 +1,37 @@
+export type ProjectStage = "pipeline" | "pre-contract" | "post-contract" | "completed";
+export type ProjectHealth = "on-track" | "at-risk" | "delayed";
+
+export type Project = {
+  id: string;
+  code: string;
+  nameEn: string;
+  nameAr: string;
+  name?: string;
+  stage: ProjectStage;
+  health: ProjectHealth;
+  type: string;
+  plotNo: string;
+  community: string;
+  emirate: string;
+  authority: string;
+  client: string;
+  contractValue: number;
+  feeType: string;
+  startDate: string;
+  targetCompletion: string;
+  gfa: number;
+  plotArea: number;
+  floors: number;
+  currentSubStage: number;
+  progress: number;
+  budgetConsumed: number;
+  hoursLogged: number;
+  hoursPlanned: number;
+  daysToDeadline: number;
+  openRFIs: number;
+  openNCRs: number;
+  pendingApprovals: number;
+  starred: boolean;
+  teamUserIds?: string[];
+  pmUserId?: string;
+};

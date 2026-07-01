@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1779704622151,
+      "tag": "0000_living_scrambler",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780300800000,
+      "tag": "0001_add_client_role",
+      "breakpoints": true
+    }
+  ]
+}

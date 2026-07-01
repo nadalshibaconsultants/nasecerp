@@ -1,0 +1,36 @@
+# Overlay that puts Caddy (automatic HTTPS) in front of the stack.
+# Use ALONGSIDE the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+#
+# Set in .env first:
+#   DOMAIN=erp.yourcompany.com
+#   ACME_EMAIL=you@yourcompany.com
+#   PUBLIC_HTTP_PORT=8080        # free up host :80 for Caddy (web stays internal)
+#   CORS_ORIGINS=https://erp.yourcompany.com
+#   SECURE_COOKIES=true
+#
+# This overlay is purely additive — it only adds the `caddy` service. Caddy
+# reaches the nginx `web` container over the internal Docker network (web:80),
+# so `web`'s host port (PUBLIC_HTTP_PORT) is no longer used by browsers.
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: nasec_caddy
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

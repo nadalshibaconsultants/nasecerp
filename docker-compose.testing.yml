@@ -1,0 +1,79 @@
+services:
+  api_testing:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: nasec_api_testing
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-nasec}:${POSTGRES_PASSWORD:-nasec_dev_pw}@db:5432/${POSTGRES_DB:-nasec_erp}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost},http://localhost:8081,http://127.0.0.1:8081,http://192.168.2.86:8081
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      STORAGE_LOCAL_PATH: /data/files
+      AWS_REGION: ${AWS_REGION:-me-central-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@nasec.local}
+      EINVOICE_ASP_MODE: ${EINVOICE_ASP_MODE:-simulation}
+      EINVOICE_ASP_PROVIDER: ${EINVOICE_ASP_PROVIDER:-}
+      EINVOICE_ASP_ENDPOINT: ${EINVOICE_ASP_ENDPOINT:-}
+      EINVOICE_ASP_API_KEY: ${EINVOICE_ASP_API_KEY:-}
+      EINVOICE_WEBHOOK_SECRET: ${EINVOICE_WEBHOOK_SECRET:-}
+      SEED_DIRECTOR_EMAIL: ${SEED_DIRECTOR_EMAIL:-director@nasec.local}
+      SEED_DIRECTOR_PASSWORD: ${SEED_DIRECTOR_PASSWORD:-ChangeMe!123}
+      SEED_DIRECTOR_NAME: ${SEED_DIRECTOR_NAME:-Director}
+      FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH:-/app/secrets/firebase.json}
+      FIREBASE_DB_URL: ${FIREBASE_DB_URL:-}
+      FIREBASE_ATTENDANCE_PATH: ${FIREBASE_ATTENDANCE_PATH:-attendance}
+      FIREBASE_SYNC_ENABLED: "false"
+    command: >
+      sh -c "npx tsx src/db/migrate.ts &&
+      npx tsx -e \"process.env.NODE_ENV='test';
+      import('./src/index.ts').then(({ app }) => {
+        const port = Number(process.env.PORT || 4000);
+        app.listen(port, '0.0.0.0', () => console.log('[api-testing] listening on http://0.0.0.0:' + port));
+      });\""
+    volumes:
+      - api_files_shared:/data/files
+      - ./secrets:/app/secrets:ro
+    expose:
+      - "4000"
+    networks:
+      testing:
+        aliases:
+          - api
+      shared_db: {}
+
+  web_testing:
+    build:
+      context: .
+      dockerfile: web.Dockerfile
+    container_name: nasec_web_testing
+    restart: unless-stopped
+    depends_on:
+      - api_testing
+    ports:
+      - "${TEST_HTTP_PORT:-8081}:80"
+    networks:
+      - testing
+
+networks:
+  testing:
+    name: nasec_testing_internal
+  shared_db:
+    external: true
+    name: nasec-deploy-v34b_default
+
+volumes:
+  api_files_shared:
+    external: true
+    name: nasec-deploy-v34b_api_files

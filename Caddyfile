@@ -1,0 +1,12 @@
+# Caddy reverse proxy — automatic HTTPS (Let's Encrypt) in front of the nginx
+# `web` container. Domain + ACME email come from .env (DOMAIN, ACME_EMAIL).
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+	# Proxy everything to the existing nginx container on the internal network.
+	# nginx still does SPA fallback + /api proxy + WebSocket upgrade.
+	reverse_proxy web:80
+}

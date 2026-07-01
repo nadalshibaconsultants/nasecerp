@@ -1,0 +1,82 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: nasec_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nasec}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nasec_dev_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-nasec_erp}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Exposed for local development (the api container uses the Docker-internal hostname 'db').
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-nasec}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: nasec_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-nasec}:${POSTGRES_PASSWORD:-nasec_dev_pw}@db:5432/${POSTGRES_DB:-nasec_erp}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      STORAGE_LOCAL_PATH: /data/files
+      AWS_REGION: ${AWS_REGION:-me-central-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@nasec.local}
+      EINVOICE_ASP_MODE: ${EINVOICE_ASP_MODE:-simulation}
+      EINVOICE_ASP_PROVIDER: ${EINVOICE_ASP_PROVIDER:-}
+      EINVOICE_ASP_ENDPOINT: ${EINVOICE_ASP_ENDPOINT:-}
+      EINVOICE_ASP_API_KEY: ${EINVOICE_ASP_API_KEY:-}
+      EINVOICE_WEBHOOK_SECRET: ${EINVOICE_WEBHOOK_SECRET:-}
+      SEED_DIRECTOR_EMAIL: ${SEED_DIRECTOR_EMAIL:-director@nasec.local}
+      SEED_DIRECTOR_PASSWORD: ${SEED_DIRECTOR_PASSWORD:-ChangeMe!123}
+      SEED_DIRECTOR_NAME: ${SEED_DIRECTOR_NAME:-Director}
+      # Firebase RTDB attendance import (place the rotated key at ./secrets/firebase.json)
+      FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH:-/app/secrets/firebase.json}
+      FIREBASE_DB_URL: ${FIREBASE_DB_URL:-}
+      FIREBASE_ATTENDANCE_PATH: ${FIREBASE_ATTENDANCE_PATH:-attendance}
+      FIREBASE_SYNC_ENABLED: ${FIREBASE_SYNC_ENABLED:-false}
+    volumes:
+      - api_files:/data/files
+      # Read-only mount of the Firebase service-account key (host ./secrets/ is gitignored)
+      - ./secrets:/app/secrets:ro
+    # Not exposed externally — only web container reaches it via the internal network.
+    expose:
+      - "4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: web.Dockerfile
+    container_name: nasec_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${PUBLIC_HTTP_PORT:-80}:80"
+
+volumes:
+  postgres_data:
+  api_files:
