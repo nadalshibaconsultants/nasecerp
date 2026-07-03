@@ -131,7 +131,7 @@ export default function HRModule() {
   const [payrollDialogOpen, setPayrollDialogOpen] = useState(false);
   const [payrollMode, setPayrollMode] = useState<"all" | "selected">("all");
   const [payrollSearch, setPayrollSearch] = useState("");
-  const [selectedEmpIds, setSelectedEmpIds] = useState<Set<string>>(new Set());
+  const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
   const renewals = useHrRenewals();
   const criticalRenewals = renewals.filter((r) => r.days < 30).length;
 
@@ -186,13 +186,13 @@ export default function HRModule() {
   function openPayrollDialog() {
     setPayrollMode("all");
     setPayrollSearch("");
-    setSelectedEmpIds(new Set());
+    setSelectedEmpIds([]);
     setPayrollDialogOpen(true);
   }
 
   async function createPayrollRun() {
     const offices = office === "all" ? ["dubai", "cairo"] as const : [office];
-    const ids = payrollMode === "selected" ? Array.from(selectedEmpIds) : undefined;
+    const ids = payrollMode === "selected" ? selectedEmpIds : undefined;
     if (payrollMode === "selected" && (!ids || ids.length === 0)) {
       toast.error("Select at least one employee");
       return;
@@ -486,7 +486,7 @@ export default function HRModule() {
             {(["all", "selected"] as const).map((m) => (
               <button
                 key={m}
-                onClick={() => { setPayrollMode(m); setSelectedEmpIds(new Set()); setPayrollSearch(""); }}
+                onClick={() => { setPayrollMode(m); setSelectedEmpIds([]); setPayrollSearch(""); }}
                 className={`rounded-lg border-2 p-3 text-left transition-all ${
                   payrollMode === m
                     ? "border-emerald-500 bg-emerald-50"
@@ -532,15 +532,13 @@ export default function HRModule() {
                     <p className="text-xs text-slate-400 text-center py-4">No employees found</p>
                   )}
                   {visible.map((e) => {
-                    const checked = selectedEmpIds.has(e.id);
+                    const checked = selectedEmpIds.includes(e.id);
                     return (
                       <button
                         key={e.id}
-                        onClick={() => setSelectedEmpIds((prev) => {
-                          const next = new Set(prev);
-                          checked ? next.delete(e.id) : next.add(e.id);
-                          return next;
-                        })}
+                        onClick={() => setSelectedEmpIds((prev) =>
+                          checked ? prev.filter((id) => id !== e.id) : [...prev, e.id]
+                        )}
                         className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${checked ? "bg-emerald-50/60" : ""}`}
                       >
                         <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`}>
@@ -557,8 +555,8 @@ export default function HRModule() {
                     );
                   })}
                 </div>
-                {selectedEmpIds.size > 0 && (
-                  <p className="text-xs text-emerald-700 font-medium">{selectedEmpIds.size} employee{selectedEmpIds.size > 1 ? "s" : ""} selected</p>
+                {selectedEmpIds.length > 0 && (
+                  <p className="text-xs text-emerald-700 font-medium">{selectedEmpIds.length} employee{selectedEmpIds.length > 1 ? "s" : ""} selected</p>
                 )}
               </div>
             );
@@ -569,10 +567,10 @@ export default function HRModule() {
             <Button
               className="bg-emerald-600 hover:bg-emerald-700 gap-1.5"
               onClick={createPayrollRun}
-              disabled={payrollBusy || (payrollMode === "selected" && selectedEmpIds.size === 0)}
+              disabled={payrollBusy || (payrollMode === "selected" && selectedEmpIds.length === 0)}
             >
               <Wallet className="w-3.5 h-3.5" />
-              {payrollBusy ? "Creating…" : payrollMode === "selected" ? `Run for ${selectedEmpIds.size || "…"} employee${selectedEmpIds.size !== 1 ? "s" : ""}` : "Run for all"}
+              {payrollBusy ? "Creating…" : payrollMode === "selected" ? `Run for ${selectedEmpIds.length || "…"} employee${selectedEmpIds.length !== 1 ? "s" : ""}` : "Run for all"}
             </Button>
           </DialogFooter>
         </DialogContent>
