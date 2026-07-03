@@ -4,7 +4,7 @@
  *  - Cleaner KPI strip (the old version had 6+ stuffed metrics)
  *  - Same 15 sub-modules underneath, all auto-filtered by selected office
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,6 +132,17 @@ export default function HRModule() {
   const [payrollMode, setPayrollMode] = useState<"all" | "selected">("all");
   const [payrollSearch, setPayrollSearch] = useState("");
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
+  const [payrollRuns, setPayrollRuns] = useState<any[]>([]);
+  const [runsLoading, setRunsLoading] = useState(false);
+  function fetchPayrollRuns() {
+    setRunsLoading(true);
+    apiFetch("/hr/payroll/runs")
+      .then((rows: any) => setPayrollRuns(Array.isArray(rows) ? rows : []))
+      .catch(() => {})
+      .finally(() => setRunsLoading(false));
+  }
+  useEffect(() => { if (tab === "payroll") fetchPayrollRuns(); }, [tab]);
+
   const renewals = useHrRenewals();
   const criticalRenewals = renewals.filter((r) => r.days < 30).length;
 
@@ -191,15 +202,23 @@ export default function HRModule() {
   }
 
   async function createPayrollRun() {
-    const offices = office === "all" ? ["dubai", "cairo"] as const : [office];
     const ids = payrollMode === "selected" ? selectedEmpIds : undefined;
     if (payrollMode === "selected" && (!ids || ids.length === 0)) {
       toast.error("Select at least one employee");
       return;
     }
+    // For selected mode, only post to offices that actually have selected employees
+    let targetOffices: ("dubai" | "cairo")[];
+    if (payrollMode === "selected" && ids && ids.length > 0) {
+      const selEmps = employees.filter((e) => ids.includes(e.id));
+      const officeSet = new Set(selEmps.map((e) => e.office || "dubai"));
+      targetOffices = Array.from(officeSet) as ("dubai" | "cairo")[];
+    } else {
+      targetOffices = office === "all" ? ["dubai", "cairo"] : [office as "dubai" | "cairo"];
+    }
     setPayrollBusy(true);
     try {
-      await Promise.all(offices.map((officeCode) => apiFetch("/hr/payroll/runs", {
+      await Promise.all(targetOffices.map((officeCode) => apiFetch("/hr/payroll/runs", {
         method: "POST",
         body: {
           office: officeCode,
@@ -213,6 +232,7 @@ export default function HRModule() {
         : (office === "all" ? "Dubai and Cairo" : OFFICES[office as "dubai" | "cairo"].name);
       toast.success(`Payroll run created for ${scope}`);
       setPayrollDialogOpen(false);
+      fetchPayrollRuns();
     } catch (err: any) {
       toast.error(err?.message || "Could not create payroll run");
     } finally {
@@ -463,6 +483,65 @@ export default function HRModule() {
               </div>
             </CardContent>
           </Card>
+          {/* Payroll runs history */}
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-emerald-600" /> Payroll runs history
+            </h3>
+            {runsLoading ? (
+              <p className="text-xs text-slate-400 py-4 text-center">Loading…</p>
+            ) : payrollRuns.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">No payroll runs created yet.</p>
+            ) : (
+              <Card>
+                <CardContent className="p-0 overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="text-left px-3 py-2">Period</th>
+                        <th className="text-left px-3 py-2">Office</th>
+                        <th className="text-right px-3 py-2">Employees</th>
+                        <th className="text-right px-3 py-2">Gross</th>
+                        <th className="text-right px-3 py-2">Deductions</th>
+                        <th className="text-right px-3 py-2 font-semibold">Net</th>
+                        <th className="text-left px-3 py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...payrollRuns]
+                        .sort((a, b) => `${b.periodYear}-${b.periodMonth}`.localeCompare(`${a.periodYear}-${a.periodMonth}`))
+                        .map((run) => {
+                          const cfg = OFFICES[run.office as "dubai" | "cairo"] ?? OFFICES.dubai;
+                          const period = new Date(run.periodYear, run.periodMonth - 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
+                          const tot = run.totals as any;
+                          const statusColor: Record<string, string> = {
+                            draft: "bg-amber-100 text-amber-700",
+                            approved: "bg-emerald-100 text-emerald-700",
+                            paid: "bg-blue-100 text-blue-700",
+                            void: "bg-slate-100 text-slate-500",
+                          };
+                          return (
+                            <tr key={run.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+                              <td className="px-3 py-2 font-medium">{period}</td>
+                              <td className="px-3 py-2">{cfg.flag} {cfg.name}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{tot?.count ?? "—"}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{tot?.gross != null ? formatMoney(tot.gross, cfg.currency) : "—"}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-red-700">{tot?.deductions != null ? `−${formatMoney(tot.deductions, cfg.currency)}` : "—"}</td>
+                              <td className="px-3 py-2 text-right tabular-nums font-semibold">{tot?.net != null ? formatMoney(tot.net, cfg.currency) : "—"}</td>
+                              <td className="px-3 py-2">
+                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded capitalize ${statusColor[run.status] ?? "bg-slate-100 text-slate-500"}`}>
+                                  {run.status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="documents" className="mt-3 space-y-3">
