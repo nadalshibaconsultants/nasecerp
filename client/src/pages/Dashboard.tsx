@@ -60,6 +60,9 @@ const kpis = [
     change: "+12.4%",
     trend: "up",
     icon: DollarSign,
+    color: "border-emerald-400 hover:border-emerald-500 hover:shadow-emerald-100",
+    iconBg: "bg-emerald-50",
+    iconColor: "text-emerald-600",
   },
   {
     label: "Active Projects",
@@ -67,6 +70,9 @@ const kpis = [
     change: "+3",
     trend: "up",
     icon: FolderKanban,
+    color: "border-blue-400 hover:border-blue-500 hover:shadow-blue-100",
+    iconBg: "bg-blue-50",
+    iconColor: "text-blue-600",
   },
   {
     label: "Team Utilization",
@@ -74,6 +80,9 @@ const kpis = [
     change: "+2.1%",
     trend: "up",
     icon: Clock,
+    color: "border-violet-400 hover:border-violet-500 hover:shadow-violet-100",
+    iconBg: "bg-violet-50",
+    iconColor: "text-violet-600",
   },
   {
     label: "Total Employees",
@@ -81,6 +90,9 @@ const kpis = [
     change: "+2",
     trend: "up",
     icon: Users,
+    color: "border-orange-400 hover:border-orange-500 hover:shadow-orange-100",
+    iconBg: "bg-orange-50",
+    iconColor: "text-orange-600",
   },
 ];
 
@@ -100,15 +112,15 @@ export default function Dashboard() {
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <Card key={kpi.label} className="border border-border">
+            <Card key={kpi.label} className={`border-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-default ${kpi.color}`}>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">{kpi.label}</p>
                     <p className="text-2xl font-bold font-data mt-1">{kpi.value}</p>
                   </div>
-                  <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                    <Icon className="w-5 h-5 text-muted-foreground" />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${kpi.iconBg}`}>
+                    <Icon className={`w-5 h-5 ${kpi.iconColor}`} />
                   </div>
                 </div>
                 <div className="flex items-center gap-1 mt-3">
@@ -126,6 +138,26 @@ export default function Dashboard() {
             </Card>
           );
         })}
+        <Card className="border-2 border-teal-400 hover:border-teal-500 hover:shadow-md hover:shadow-teal-100 hover:-translate-y-0.5 transition-all duration-200 cursor-default p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Pipeline Value</p>
+          <p className="text-xl font-bold font-data mt-1">AED 4.2M</p>
+          <Progress value={68} className="mt-2 h-1.5" />
+        </Card>
+        <Card className="border-2 border-indigo-400 hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100 hover:-translate-y-0.5 transition-all duration-200 cursor-default p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Billable Hours</p>
+          <p className="text-xl font-bold font-data mt-1">1,247</p>
+          <Progress value={76} className="mt-2 h-1.5" />
+        </Card>
+        <Card className="border-2 border-rose-400 hover:border-rose-500 hover:shadow-md hover:shadow-rose-100 hover:-translate-y-0.5 transition-all duration-200 cursor-default p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Open RFIs</p>
+          <p className="text-xl font-bold font-data mt-1">23</p>
+          <Progress value={45} className="mt-2 h-1.5" />
+        </Card>
+        <Card className="border-2 border-amber-400 hover:border-amber-500 hover:shadow-md hover:shadow-amber-100 hover:-translate-y-0.5 transition-all duration-200 cursor-default p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg. Profitability</p>
+          <p className="text-xl font-bold font-data mt-1">34.2%</p>
+          <Progress value={34} className="mt-2 h-1.5" />
+        </Card>
       </div>
 
       {/* Charts row */}
@@ -262,29 +294,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border border-border p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Pipeline Value</p>
-          <p className="text-xl font-bold font-data mt-1">AED 4.2M</p>
-          <Progress value={68} className="mt-2 h-1.5" />
-        </Card>
-        <Card className="border border-border p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Billable Hours</p>
-          <p className="text-xl font-bold font-data mt-1">1,247</p>
-          <Progress value={76} className="mt-2 h-1.5" />
-        </Card>
-        <Card className="border border-border p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Open RFIs</p>
-          <p className="text-xl font-bold font-data mt-1">23</p>
-          <Progress value={45} className="mt-2 h-1.5" />
-        </Card>
-        <Card className="border border-border p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg. Profitability</p>
-          <p className="text-xl font-bold font-data mt-1">34.2%</p>
-          <Progress value={34} className="mt-2 h-1.5" />
-        </Card>
-      </div>
     </div>
   );
 }
