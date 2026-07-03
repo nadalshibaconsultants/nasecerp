@@ -12,7 +12,7 @@ import { Plane, Plus, Check, X, CalendarDays, Clock, Heart, Baby, BookOpen, User
 import { employeesStore, leavesStore, leaveHandoversStore, auditStore } from "@/lib/stores";
 import HandoverDialog from "./HandoverDialog";
 import { useCollection, newId } from "@/lib/store";
-import { useCurrentActor } from "@/lib/auth/AuthContext";
+import { useCurrentActor, useAuth } from "@/lib/auth/AuthContext";
 import { ENTITLEMENT_DAYS, leaveBalance, daysBetween, type LeaveType } from "@/lib/hr/leave-utils";
 import type { LeaveRequest } from "@/lib/attendance/types";
 import type { Employee } from "@/lib/hr/types";
@@ -20,6 +20,7 @@ import { apiFetch } from "@/lib/backend/api";
 
 export default function LeaveManagement() {
   const actor = useCurrentActor();
+  const { hasRole } = useAuth();
   const employees = useCollection(employeesStore);
   const leaves = useCollection(leavesStore);
   const handovers = useCollection(leaveHandoversStore);
@@ -32,7 +33,7 @@ export default function LeaveManagement() {
   const [editSick, setEditSick] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
-  const isHR = actor?.role === "director" || actor?.role === "hr-manager";
+  const isHR = hasRole("director", "hr-manager");
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
