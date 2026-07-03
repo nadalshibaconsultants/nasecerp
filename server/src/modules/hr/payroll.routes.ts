@@ -20,6 +20,7 @@ const createRunSchema = z.object({
   office: z.enum(["dubai", "cairo"]),
   periodYear: z.number().int(),
   periodMonth: z.number().int().min(1).max(12),
+  employeeIds: z.array(z.string().uuid()).optional(), // omit = all active employees in office
 });
 
 function calcDeductions(office: "dubai" | "cairo", gross: number, basic: number): { items: Array<[string, number]>; total: number } {
@@ -66,15 +67,21 @@ payrollRouter.post("/runs", requirePerm("hr:payroll:write"), async (req, res, ne
   try {
     const input = createRunSchema.parse(req.body);
 
-    // Prevent duplicate runs for same office/period
-    const dup = await db.select().from(payrollRuns).where(and(
-      eq(payrollRuns.office, input.office),
-      eq(payrollRuns.periodYear, input.periodYear),
-      eq(payrollRuns.periodMonth, input.periodMonth),
-    )).limit(1);
-    if (dup[0] && dup[0].status !== "void") throw new HttpError(409, "Run already exists for this period");
+    // Duplicate check only applies to full-office runs (not targeted sub-runs)
+    const isFullRun = !input.employeeIds || input.employeeIds.length === 0;
+    if (isFullRun) {
+      const dup = await db.select().from(payrollRuns).where(and(
+        eq(payrollRuns.office, input.office),
+        eq(payrollRuns.periodYear, input.periodYear),
+        eq(payrollRuns.periodMonth, input.periodMonth),
+      )).limit(1);
+      if (dup[0] && dup[0].status !== "void") throw new HttpError(409, "Run already exists for this period");
+    }
 
-    const empRows = await db.select().from(employees).where(eq(employees.office, input.office));
+    let empRows = await db.select().from(employees).where(eq(employees.office, input.office));
+    if (!isFullRun) {
+      empRows = empRows.filter((e) => input.employeeIds!.includes(e.id));
+    }
     const compRows = await db.select().from(employeeCompensation);
     const compMap = new Map(compRows.map((c) => [c.employeeId, c]));
 

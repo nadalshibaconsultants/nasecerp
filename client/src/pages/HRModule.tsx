@@ -128,6 +128,10 @@ export default function HRModule() {
   const [confirmDelete, setConfirmDelete] = useState<Employee | undefined>(undefined);
   const [renewalsOpen, setRenewalsOpen] = useState(false);
   const [payrollBusy, setPayrollBusy] = useState(false);
+  const [payrollDialogOpen, setPayrollDialogOpen] = useState(false);
+  const [payrollMode, setPayrollMode] = useState<"all" | "selected">("all");
+  const [payrollSearch, setPayrollSearch] = useState("");
+  const [selectedEmpIds, setSelectedEmpIds] = useState<Set<string>>(new Set());
   const renewals = useHrRenewals();
   const criticalRenewals = renewals.filter((r) => r.days < 30).length;
 
@@ -179,8 +183,20 @@ export default function HRModule() {
     toast.success(`Removed ${confirmDelete.firstName} ${confirmDelete.lastName}`);
     setConfirmDelete(undefined);
   }
+  function openPayrollDialog() {
+    setPayrollMode("all");
+    setPayrollSearch("");
+    setSelectedEmpIds(new Set());
+    setPayrollDialogOpen(true);
+  }
+
   async function createPayrollRun() {
     const offices = office === "all" ? ["dubai", "cairo"] as const : [office];
+    const ids = payrollMode === "selected" ? Array.from(selectedEmpIds) : undefined;
+    if (payrollMode === "selected" && (!ids || ids.length === 0)) {
+      toast.error("Select at least one employee");
+      return;
+    }
     setPayrollBusy(true);
     try {
       await Promise.all(offices.map((officeCode) => apiFetch("/hr/payroll/runs", {
@@ -189,9 +205,14 @@ export default function HRModule() {
           office: officeCode,
           periodYear: PAYROLL_FOR_MONTH.year,
           periodMonth: PAYROLL_FOR_MONTH.monthIndex0 + 1,
+          ...(ids ? { employeeIds: ids } : {}),
         },
       })));
-      toast.success(`Payroll run created for ${office === "all" ? "Dubai and Cairo" : OFFICES[office].name}`);
+      const scope = payrollMode === "selected"
+        ? `${ids!.length} employee${ids!.length > 1 ? "s" : ""}`
+        : (office === "all" ? "Dubai and Cairo" : OFFICES[office as "dubai" | "cairo"].name);
+      toast.success(`Payroll run created for ${scope}`);
+      setPayrollDialogOpen(false);
     } catch (err: any) {
       toast.error(err?.message || "Could not create payroll run");
     } finally {
@@ -390,10 +411,9 @@ export default function HRModule() {
             </div>
             <Button
               className="gap-1.5 border border-emerald-300 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 hover:shadow-md"
-              disabled={payrollBusy}
-              onClick={createPayrollRun}
+              onClick={openPayrollDialog}
             >
-              <Wallet className="w-4 h-4" /> {payrollBusy ? "Creating..." : "Create payroll run"}
+              <Wallet className="w-4 h-4" /> Create payroll run
             </Button>
           </div>
           <Card>
@@ -447,6 +467,116 @@ export default function HRModule() {
           <DocumentExpiryGrid employees={employees} />
         </TabsContent>
       </Tabs>
+
+      {/* Payroll run dialog */}
+      <Dialog open={payrollDialogOpen} onOpenChange={(o) => { if (!o) setPayrollDialogOpen(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-emerald-600" /> Create payroll run
+            </DialogTitle>
+            <DialogDescription>
+              {PAYROLL_FOR_MONTH.year} · {new Date(PAYROLL_FOR_MONTH.year, PAYROLL_FOR_MONTH.monthIndex0).toLocaleString("en-GB", { month: "long" })}
+              {office !== "all" && ` · ${OFFICES[office as "dubai" | "cairo"].name}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Mode selector */}
+          <div className="grid grid-cols-2 gap-3">
+            {(["all", "selected"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => { setPayrollMode(m); setSelectedEmpIds(new Set()); setPayrollSearch(""); }}
+                className={`rounded-lg border-2 p-3 text-left transition-all ${
+                  payrollMode === m
+                    ? "border-emerald-500 bg-emerald-50"
+                    : "border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-2 font-medium text-sm">
+                  {m === "all" ? <Users className="w-4 h-4 text-emerald-600" /> : <Search className="w-4 h-4 text-blue-600" />}
+                  {m === "all" ? "All employees" : "Select employees"}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {m === "all"
+                    ? "Run payroll for every active employee in scope."
+                    : "Pick specific employees to include in this run."}
+                </p>
+              </button>
+            ))}
+          </div>
+
+          {/* Employee picker — shown only in "selected" mode */}
+          {payrollMode === "selected" && (() => {
+            const q = payrollSearch.trim().toLowerCase();
+            const officeEmployees = office === "all" ? employees : employees.filter((e) => e.office === office);
+            const visible = officeEmployees.filter((e) =>
+              !q
+              || `${e.firstName} ${e.lastName}`.toLowerCase().includes(q)
+              || e.code.toLowerCase().includes(q)
+              || e.jobTitle.toLowerCase().includes(q)
+            );
+            return (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                  <Input
+                    placeholder="Search employees…"
+                    value={payrollSearch}
+                    onChange={(e) => setPayrollSearch(e.target.value)}
+                    className="pl-8 h-8 text-sm"
+                  />
+                </div>
+                <div className="border border-slate-200 rounded-lg overflow-auto max-h-52 divide-y divide-slate-100">
+                  {visible.length === 0 && (
+                    <p className="text-xs text-slate-400 text-center py-4">No employees found</p>
+                  )}
+                  {visible.map((e) => {
+                    const checked = selectedEmpIds.has(e.id);
+                    return (
+                      <button
+                        key={e.id}
+                        onClick={() => setSelectedEmpIds((prev) => {
+                          const next = new Set(prev);
+                          checked ? next.delete(e.id) : next.add(e.id);
+                          return next;
+                        })}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${checked ? "bg-emerald-50/60" : ""}`}
+                      >
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`}>
+                          {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <Avatar className="w-6 h-6 flex-shrink-0">
+                          <AvatarFallback className="text-[10px]">{e.firstName[0]}{e.lastName[0]}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{e.firstName} {e.lastName}</div>
+                          <div className="text-[10px] text-slate-500 truncate">{e.jobTitle} · {OFFICES[e.office || "dubai"].name}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedEmpIds.size > 0 && (
+                  <p className="text-xs text-emerald-700 font-medium">{selectedEmpIds.size} employee{selectedEmpIds.size > 1 ? "s" : ""} selected</p>
+                )}
+              </div>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayrollDialogOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 gap-1.5"
+              onClick={createPayrollRun}
+              disabled={payrollBusy || (payrollMode === "selected" && selectedEmpIds.size === 0)}
+            >
+              <Wallet className="w-3.5 h-3.5" />
+              {payrollBusy ? "Creating…" : payrollMode === "selected" ? `Run for ${selectedEmpIds.size || "…"} employee${selectedEmpIds.size !== 1 ? "s" : ""}` : "Run for all"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <EmployeeFormDialog open={formOpen} onOpenChange={(v) => { setFormOpen(v); if (!v) setEditingId(undefined); }} employeeId={editingId} />
 
