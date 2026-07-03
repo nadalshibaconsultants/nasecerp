@@ -107,7 +107,8 @@ export type Employee = {
   updatedAt: string;
 };
 
-export function grossSalary(s: SalaryBreakdown): number {
+export function grossSalary(s: SalaryBreakdown | null | undefined): number {
+  if (!s) return 0;
   return (s.basic || 0) + (s.housing || 0) + (s.transport || 0) + (s.food || 0) + (s.other || 0);
 }
 

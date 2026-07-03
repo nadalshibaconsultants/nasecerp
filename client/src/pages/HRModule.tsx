@@ -434,7 +434,7 @@ export default function HRModule() {
                   </tr>
                 </thead>
                 <tbody>
-                  {employees.map((e) => {
+                  {employees.filter((e) => e.salary).map((e) => {
                     const line = monthlyPayroll(e, monthDays, PAYROLL_FOR_MONTH.year, PAYROLL_FOR_MONTH.monthIndex0);
                     const allow = line.housing + line.transport + line.food + line.other;
                     const cfg = OFFICES[e.office || "dubai"];
@@ -455,9 +455,11 @@ export default function HRModule() {
                   })}
                 </tbody>
               </table>
-              <div className="p-3 text-xs text-slate-500 flex items-center gap-2">
-                <Activity className="w-3.5 h-3.5" />
-                Office-aware: Cairo applies Egyptian PIT brackets + SI; Dubai applies UAE labour law (no PIT, optional pension). Working-day count uses each office's calendar.
+              <div className="p-3 text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5" />Office-aware: Cairo applies Egyptian PIT brackets + SI; Dubai applies UAE labour law (no PIT, optional pension).</span>
+                {employees.filter((e) => !e.salary).length > 0 && (
+                  <span className="text-amber-600">{employees.filter((e) => !e.salary).length} employee{employees.filter((e) => !e.salary).length > 1 ? "s" : ""} excluded — no compensation record set up.</span>
+                )}
               </div>
             </CardContent>
           </Card>

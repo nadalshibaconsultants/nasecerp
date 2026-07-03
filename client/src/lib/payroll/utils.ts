@@ -65,7 +65,7 @@ export function monthlyPayroll(employee: Employee, monthDays: AttendanceDay[], y
   const totalNormalMin = inMonth.reduce((a, d) => a + d.normalMinutes, 0);
   const totalOTMin = inMonth.reduce((a, d) => a + d.overtimeMinutes, 0);
 
-  const sb: SalaryBreakdown = employee.salary;
+  const sb: SalaryBreakdown = employee.salary ?? { basic: 0, housing: 0, transport: 0, food: 0, other: 0 };
   const gross = grossSalary(sb);
 
   const hourlyRate = wd > 0 ? gross / (wd * office.hoursPerDay) : 0;
