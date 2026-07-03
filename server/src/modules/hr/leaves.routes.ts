@@ -95,6 +95,15 @@ leavesRouter.get("/", requireAnyPerm("hr:read", "self:read"), async (req, res, n
   } catch (e) { next(e); }
 });
 
+// GET all balances for current year (HR-facing; must be before /:id to avoid route conflict)
+leavesRouter.get("/balances", requirePerm("hr:read"), async (req, res, next) => {
+  try {
+    const year = Number(req.query.year ?? new Date().getUTCFullYear());
+    const rows = await db.select().from(leaveBalances).where(eq(leaveBalances.year, year));
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
 leavesRouter.get("/:id", requireAnyPerm("hr:read", "self:read"), async (req, res, next) => {
   try {
     const rows = await db.select().from(leaveRequests).where(eq(leaveRequests.id, req.params.id)).limit(1);
@@ -222,6 +231,27 @@ leavesRouter.get("/balances/:employeeId", requirePerm("hr:read"), async (req, re
     const year = Number(req.query.year ?? new Date().getUTCFullYear());
     const rows = await db.select().from(leaveBalances)
       .where(and(eq(leaveBalances.employeeId, req.params.employeeId), eq(leaveBalances.year, year)));
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// PUT /balances/:employeeId — HR can override entitlement for any leave type+year
+leavesRouter.put("/balances/:employeeId", requirePerm("hr:write"), async (req, res, next) => {
+  try {
+    const { employeeId } = req.params;
+    const year = Number(req.query.year ?? new Date().getUTCFullYear());
+    const input = z.record(z.string(), z.number().min(0).max(999)).parse(req.body);
+    for (const [lt, ent] of Object.entries(input)) {
+      await db.insert(leaveBalances)
+        .values({ employeeId, leaveType: lt as any, year, entitlement: String(ent), accrued: "0", updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: [leaveBalances.employeeId, leaveBalances.leaveType, leaveBalances.year],
+          set: { entitlement: String(ent), updatedAt: new Date() },
+        });
+    }
+    const rows = await db.select().from(leaveBalances)
+      .where(and(eq(leaveBalances.employeeId, employeeId), eq(leaveBalances.year, year)));
+    await writeAudit(req, { action: "edit-leave-balance", entityType: "employee", entityId: employeeId, after: input });
     res.json(rows);
   } catch (e) { next(e); }
 });

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plane, Plus, Check, X, CalendarDays, Clock, Heart, Baby, BookOpen, Users } from "lucide-react";
+import { Plane, Plus, Check, X, CalendarDays, Clock, Heart, Baby, BookOpen, Users, Pencil } from "lucide-react";
 import { employeesStore, leavesStore, leaveHandoversStore, auditStore } from "@/lib/stores";
 import HandoverDialog from "./HandoverDialog";
 import { useCollection, newId } from "@/lib/store";
@@ -24,6 +24,59 @@ export default function LeaveManagement() {
   const leaves = useCollection(leavesStore);
   const handovers = useCollection(leaveHandoversStore);
   useCollection(auditStore);
+
+  // DB-stored entitlements keyed by employeeId -> leaveType -> days
+  const [dbEntitlements, setDbEntitlements] = useState<Record<string, Record<string, number>>>({});
+  const [editTarget, setEditTarget] = useState<Employee | null>(null);
+  const [editAnnual, setEditAnnual] = useState("");
+  const [editSick, setEditSick] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  const isHR = actor?.role === "director" || actor?.role === "hr-manager";
+  const currentYear = new Date().getFullYear();
+
+  useEffect(() => {
+    if (!isHR) return;
+    apiFetch(`/hr/leaves/balances?year=${currentYear}`)
+      .then((rows: any[]) => {
+        const map: Record<string, Record<string, number>> = {};
+        for (const r of rows) {
+          if (!map[r.employeeId]) map[r.employeeId] = {};
+          map[r.employeeId][r.leaveType] = Number(r.entitlement);
+        }
+        setDbEntitlements(map);
+      })
+      .catch(() => {});
+  }, [leaves.length, isHR]);
+
+  function openEdit(e: Employee) {
+    const ent = dbEntitlements[e.id] || {};
+    const b = leaveBalance(e, []);
+    setEditAnnual(String(ent.annual !== undefined ? ent.annual : b.annual.entitled));
+    setEditSick(String(ent.sick !== undefined ? ent.sick : b.sick.entitled));
+    setEditTarget(e);
+  }
+
+  async function saveBalance() {
+    if (!editTarget) return;
+    setEditSaving(true);
+    try {
+      await apiFetch(`/hr/leaves/balances/${editTarget.id}?year=${currentYear}`, {
+        method: "PUT",
+        body: { annual: Number(editAnnual), sick: Number(editSick) },
+      });
+      setDbEntitlements((prev) => ({
+        ...prev,
+        [editTarget.id]: { ...(prev[editTarget.id] || {}), annual: Number(editAnnual), sick: Number(editSick) },
+      }));
+      toast.success("Leave balance updated");
+      setEditTarget(null);
+    } catch (err: any) {
+      toast.error(err?.message || "Could not save balance");
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   const [reqOpen, setReqOpen] = useState(false);
   const [handoverTarget, setHandoverTarget] = useState<{ leave: LeaveRequest; employee: Employee } | null>(null);
@@ -132,17 +185,41 @@ export default function LeaveManagement() {
           <CardHeader className="pb-2"><CardTitle className="text-sm">Balances by employee</CardTitle></CardHeader>
           <CardContent className="p-0 overflow-auto">
             <table className="w-full text-xs">
-              <thead className="bg-slate-50 text-slate-600"><tr><th className="text-left px-2 py-1.5">Employee</th><th className="text-right px-2 py-1.5">Annual</th><th className="text-right px-2 py-1.5">Sick</th><th className="text-right px-2 py-1.5">Pending</th></tr></thead>
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="text-left px-2 py-1.5">Employee</th>
+                  <th className="text-right px-2 py-1.5">Annual</th>
+                  <th className="text-right px-2 py-1.5">Sick</th>
+                  <th className="text-right px-2 py-1.5">Pending</th>
+                  {isHR && <th className="px-2 py-1.5" />}
+                </tr>
+              </thead>
               <tbody>
                 {employees.map((e) => {
-                  const b = leaveBalance(e.id, leaves);
+                  const b = leaveBalance(e, leaves);
+                  const dbEnt = dbEntitlements[e.id] || {};
+                  const annualEnt = dbEnt.annual !== undefined ? dbEnt.annual : b.annual.entitled;
+                  const sickEnt = dbEnt.sick !== undefined ? dbEnt.sick : b.sick.entitled;
+                  const annualRem = Math.max(0, Math.round((annualEnt - b.annual.taken) * 100) / 100);
+                  const sickRem = Math.max(0, Math.round((sickEnt - b.sick.taken) * 100) / 100);
                   const pending = Object.values(b).reduce((a, x) => a + x.pending, 0);
                   return (
-                    <tr key={e.id} className="border-t border-slate-100">
-                      <td className="px-2 py-1.5">{e.firstName} {e.lastName}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">{b.annual.remaining} / {b.annual.entitled}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">{b.sick.remaining} / {b.sick.entitled}</td>
+                    <tr key={e.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+                      <td className="px-2 py-1.5 font-medium">{e.firstName} {e.lastName}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{annualRem} / {annualEnt}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{sickRem} / {sickEnt}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{pending > 0 ? <Badge variant="outline" className="text-[10px]">{pending}d pending</Badge> : "-"}</td>
+                      {isHR && (
+                        <td className="px-2 py-1.5 text-right">
+                          <button
+                            onClick={() => openEdit(e)}
+                            className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+                            title="Edit leave balance"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -229,6 +306,53 @@ export default function LeaveManagement() {
         leave={handoverTarget?.leave}
         employee={handoverTarget?.employee}
       />
+
+      {/* Edit leave balance dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) setEditTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit leave balance</DialogTitle>
+            <DialogDescription>
+              {editTarget ? `${editTarget.firstName} ${editTarget.lastName} — ${currentYear}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Annual entitlement (days)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={999}
+                  value={editAnnual}
+                  onChange={(e) => setEditAnnual(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Sick entitlement (days)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={999}
+                  value={editSick}
+                  onChange={(e) => setEditSick(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-2.5 py-2">
+              Changing the entitlement updates the total days available. Used days (approved requests) are automatically deducted from this figure.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button onClick={saveBalance} disabled={editSaving}>
+              {editSaving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
