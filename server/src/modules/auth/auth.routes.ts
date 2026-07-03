@@ -28,8 +28,8 @@ authRouter.post("/login", authLimiter, async (req, res, next) => {
     const input = loginSchema.parse(req.body);
     const result = await svc.login(input, { ip: req.ip, userAgent: req.header("user-agent") ?? undefined });
     res.cookie(REFRESH_COOKIE, result.refreshToken, cookieOptions);
-    await writeAudit(req, { action: "login", entityType: "user", entityId: result.user.id });
     res.json({ accessToken: result.accessToken, user: result.user });
+    writeAudit(req, { action: "login", entityType: "user", entityId: result.user.id }).catch(() => {});
   } catch (err) { next(err); }
 });
 

@@ -5,8 +5,9 @@ import * as schema from "./schema/index.js";
 
 export const pool = new pg.Pool({
   connectionString: env.DATABASE_URL,
-  max: 20,
+  max: 50,
   idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
 });
 
 pool.on("error", (err) => {
