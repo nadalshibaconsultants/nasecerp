@@ -23,6 +23,9 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { ROLE_LABELS } from "@/lib/auth/permissions";
 import type { Permission } from "@/lib/auth/types";
 import { permissionSetHas } from "@/lib/auth/permission-helpers";
+import { OfficeSwitcherCompact, useActiveOffice } from "@/components/office/OfficeSwitcher";
+import { arInvoicesStore, apBillsStore } from "@/lib/stores";
+import { useCollection } from "@/lib/store";
 
 type NavItem = {
   path: string;
@@ -106,6 +109,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [location] = useLocation();
   const { canAny, currentUser } = useAuth();
+  const isFinance = location.startsWith("/finance");
+  const [officeFilter, setOfficeFilter] = useActiveOffice("all");
+  const arInvoices = useCollection(arInvoicesStore);
+  const apBills = useCollection(apBillsStore);
   const clientCanAny = (perms: Permission[]) => {
     if (currentUser?.role !== "client") return canAny(perms);
     return perms.some((perm) => permissionSetHas(currentUser.extraPermissions ?? [], perm));
@@ -252,6 +259,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Search className="absolute left-3 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Search..." className="pl-9 w-[200px] lg:w-[280px] h-9 bg-secondary border-0" />
             </div>
+            {isFinance && (
+              <OfficeSwitcherCompact
+                active={officeFilter}
+                onChange={setOfficeFilter}
+                counts={{
+                  all: arInvoices.length + apBills.length,
+                  dubai:
+                    arInvoices.filter((i) => i.office === "dubai").length +
+                    apBills.filter((b) => b.office === "dubai").length,
+                  cairo:
+                    arInvoices.filter((i) => i.office === "cairo").length +
+                    apBills.filter((b) => b.office === "cairo").length,
+                }}
+              />
+            )}
             <LangToggle />
             <NotificationCenter />
             <UserMenu />

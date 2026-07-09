@@ -150,4 +150,169 @@
   .accent-border-left {
     border-left: 3px solid oklch(0.78 0.12 80);
   }
+
+  .org-sheet {
+    min-height: 620px;
+    border: 1px solid oklch(0.90 0.01 250);
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg, oklch(0.99 0.003 250), oklch(0.96 0.006 250)),
+      radial-gradient(circle, oklch(0.86 0.01 250) 1px, transparent 1px);
+    background-size: auto, 18px 18px;
+    padding: 18px;
+  }
+
+  .org-branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .org-level {
+    position: relative;
+    display: grid;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .org-level::before {
+    content: "";
+    position: absolute;
+    top: -12px;
+    left: 24px;
+    right: 24px;
+    border-top: 1px solid oklch(0.80 0.02 250);
+  }
+
+  .org-level > .org-branch,
+  .org-level > .org-department-card {
+    position: relative;
+  }
+
+  .org-level > .org-branch::before,
+  .org-level > .org-department-card::before {
+    content: "";
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    height: 12px;
+    border-left: 1px solid oklch(0.80 0.02 250);
+  }
+
+  .org-level-office {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+
+  .org-level-department {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .org-level-employee {
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  }
+
+  .org-vertical-line {
+    height: 22px;
+    border-left: 1px solid oklch(0.80 0.02 250);
+  }
+
+  .org-vertical-line-sm {
+    height: 12px;
+  }
+
+  .org-node {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: min(100%, 220px);
+    min-height: 58px;
+    border: 1px solid oklch(0.88 0.01 250);
+    border-radius: 8px;
+    background: white;
+    padding: 0.55rem;
+    color: oklch(0.22 0.03 250);
+    box-shadow: 0 6px 16px oklch(0.25 0.03 250 / 0.07);
+  }
+
+  .org-node-compact {
+    width: 100%;
+    min-height: 48px;
+    box-shadow: none;
+  }
+
+  .org-node-company {
+    width: min(100%, 230px);
+    background: oklch(0.18 0.03 250);
+    color: white;
+    border-color: oklch(0.18 0.03 250);
+  }
+
+  .org-node-office {
+    background: oklch(0.96 0.015 215);
+    border-color: oklch(0.84 0.04 215);
+    color: oklch(0.25 0.05 215);
+  }
+
+  .org-node-department {
+    background: oklch(0.98 0.025 88);
+    border-color: oklch(0.88 0.06 88);
+    color: oklch(0.28 0.05 88);
+  }
+
+  .org-node-employee {
+    background: oklch(1 0 0);
+  }
+
+  .org-department-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    border: 1px solid oklch(0.89 0.01 250);
+    border-radius: 8px;
+    background: oklch(1 0 0 / 0.88);
+    padding: 8px;
+    box-shadow: 0 4px 14px oklch(0.25 0.03 250 / 0.05);
+  }
+
+  .org-people-grid {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 6px;
+  }
+
+  .org-person-chip {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid oklch(0.91 0.008 250);
+    border-radius: 7px;
+    background: white;
+    padding: 0.45rem;
+  }
+
+  @media (max-width: 640px) {
+    .org-sheet {
+      padding: 12px;
+    }
+
+    .org-level {
+      grid-template-columns: 1fr;
+    }
+
+    .org-level::before {
+      display: none;
+    }
+
+    .org-level > .org-branch::before,
+    .org-level > .org-department-card::before {
+      left: 50%;
+    }
+  }
 }

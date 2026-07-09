@@ -7,17 +7,32 @@ import { Globe, Building2 } from "lucide-react";
 
 type Choice = "all" | OfficeId;
 
+const ACTIVE_OFFICE_EVENT = "nasec-active-office-change";
+
 export function useActiveOffice(defaultChoice: Choice = "all"): [Choice, (c: Choice) => void] {
-  const [choice, setChoice] = useState<Choice>(() => {
+  const [choice, setChoiceState] = useState<Choice>(() => {
     try {
       const stored = window.localStorage.getItem(ACTIVE_OFFICE_KEY);
       if (stored === "dubai" || stored === "cairo" || stored === "all") return stored;
     } catch { /* noop */ }
     return defaultChoice;
   });
+
   useEffect(() => {
-    try { window.localStorage.setItem(ACTIVE_OFFICE_KEY, choice); } catch { /* noop */ }
-  }, [choice]);
+    const onChange = (e: Event) => {
+      const next = (e as CustomEvent<Choice>).detail;
+      if (next) setChoiceState(next);
+    };
+    window.addEventListener(ACTIVE_OFFICE_EVENT, onChange);
+    return () => window.removeEventListener(ACTIVE_OFFICE_EVENT, onChange);
+  }, []);
+
+  const setChoice = (c: Choice) => {
+    setChoiceState(c);
+    try { window.localStorage.setItem(ACTIVE_OFFICE_KEY, c); } catch { /* noop */ }
+    window.dispatchEvent(new CustomEvent(ACTIVE_OFFICE_EVENT, { detail: c }));
+  };
+
   return [choice, setChoice];
 }
 
@@ -66,6 +81,35 @@ export default function OfficeSwitcher({ active, onChange, counts, allLabel = "C
         accent={OFFICES.cairo.themeAccent}
         count={counts.cairo}
       />
+    </div>
+  );
+}
+
+export function OfficeSwitcherCompact({ active, onChange, counts }: Props) {
+  const items: Array<{ key: Choice; label: string; count?: number }> = [
+    { key: "all", label: "All offices", count: counts.all },
+    { key: "dubai", label: `${OFFICES.dubai.flag} Dubai`, count: counts.dubai },
+    { key: "cairo", label: `${OFFICES.cairo.flag} Cairo`, count: counts.cairo },
+  ];
+  return (
+    <div className="hidden md:flex items-center gap-1 rounded-md border border-border bg-secondary/60 p-0.5">
+      {items.map((it) => (
+        <button
+          key={it.key}
+          type="button"
+          onClick={() => onChange(it.key)}
+          className={`px-2 py-1 text-xs rounded-md flex items-center gap-1 transition-colors ${
+            active === it.key
+              ? "bg-background shadow-sm font-medium text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {it.label}
+          {typeof it.count === "number" && (
+            <span className="text-[10px] text-muted-foreground">{it.count}</span>
+          )}
+        </button>
+      ))}
     </div>
   );
 }

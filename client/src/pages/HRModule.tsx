@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
@@ -17,18 +17,24 @@ import { toast } from "sonner";
 import {
   Activity,
   AlertTriangle,
+  ArrowLeft,
   Award,
+  BriefcaseBusiness,
   CalendarDays,
   Filter,
+  FileText,
   FileSignature,
   FileWarning,
   GraduationCap,
   History,
   IdCard,
   Laptop,
+  Mail,
+  MapPin,
   Network,
   Pencil,
   Plane,
+  Phone,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -40,7 +46,17 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { employeesStore, punchesStore, leavesStore } from "@/lib/stores";
+import {
+  assetsStore,
+  disciplinaryStore,
+  employeesStore,
+  leavesStore,
+  lettersStore,
+  onboardingStore,
+  punchesStore,
+  reviewsStore,
+  trainingStore,
+} from "@/lib/stores";
 import { useCollection } from "@/lib/store";
 import { DEPARTMENTS, expiryStatus, expiryColorClass, grossSalary, type Employee } from "@/lib/hr/types";
 import { OFFICES, formatMoney, workingDaysInMonthForOffice } from "@/lib/office/configs";
@@ -107,6 +123,12 @@ export default function HRModule() {
   const allEmployees = useCollection(employeesStore);
   const punches = useCollection(punchesStore);
   const leaves = useCollection(leavesStore);
+  const training = useCollection(trainingStore);
+  const assets = useCollection(assetsStore);
+  const disciplinary = useCollection(disciplinaryStore);
+  const reviews = useCollection(reviewsStore);
+  const onboarding = useCollection(onboardingStore);
+  const letters = useCollection(lettersStore);
   const [office, setOffice] = useActiveOffice("all");
 
   const employees = useMemo(() => office === "all" ? allEmployees : allEmployees.filter((e) => e.office === office), [allEmployees, office]);
@@ -134,6 +156,9 @@ export default function HRModule() {
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<any[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | undefined>(undefined);
+  const [detailEmployee, setDetailEmployee] = useState<Employee | undefined>(undefined);
+  const [detailLoading, setDetailLoading] = useState(false);
   function fetchPayrollRuns() {
     setRunsLoading(true);
     apiFetch("/hr/payroll/runs")
@@ -142,6 +167,21 @@ export default function HRModule() {
       .finally(() => setRunsLoading(false));
   }
   useEffect(() => { if (tab === "payroll") fetchPayrollRuns(); }, [tab]);
+  useEffect(() => {
+    if (!selectedEmployeeId) {
+      setDetailEmployee(undefined);
+      return;
+    }
+    const fallback = allEmployees.find((e) => e.id === selectedEmployeeId);
+    setDetailEmployee(fallback);
+    setDetailLoading(true);
+    apiFetch(`/hr/employees/${selectedEmployeeId}`)
+      .then((employee: any) => setDetailEmployee(employee as Employee))
+      .catch(() => {
+        if (!fallback) toast.error("Could not load employee profile");
+      })
+      .finally(() => setDetailLoading(false));
+  }, [selectedEmployeeId, allEmployees]);
 
   const renewals = useHrRenewals();
   const criticalRenewals = renewals.filter((r) => r.days < 30).length;
@@ -188,6 +228,7 @@ export default function HRModule() {
 
   function openAdd() { setEditingId(undefined); setFormOpen(true); }
   function openEdit(id: string) { setEditingId(id); setFormOpen(true); }
+  function openEmployeeDetail(id: string) { setSelectedEmployeeId(id); }
   function doDelete() {
     if (!confirmDelete) return;
     employeesStore.remove(confirmDelete.id);
@@ -308,6 +349,24 @@ export default function HRModule() {
         </div>
 
         <TabsContent value="employees" className="space-y-3 mt-3">
+          {selectedEmployeeId && detailEmployee ? (
+            <EmployeeDetailPage
+              employee={detailEmployee}
+              manager={allEmployees.find((e) => e.id === detailEmployee.managerEmployeeId)}
+              loading={detailLoading}
+              punches={punches.filter((p) => p.employeeId === detailEmployee.id)}
+              leaves={leaves.filter((l) => l.employeeId === detailEmployee.id)}
+              training={training.filter((r) => r.employeeId === detailEmployee.id)}
+              assets={assets.filter((r) => r.employeeId === detailEmployee.id)}
+              disciplinary={disciplinary.filter((r) => r.employeeId === detailEmployee.id)}
+              reviews={reviews.filter((r) => r.employeeId === detailEmployee.id)}
+              onboarding={onboarding.filter((r) => r.employeeId === detailEmployee.id)}
+              letters={letters.filter((r) => r.employeeId === detailEmployee.id)}
+              onBack={() => setSelectedEmployeeId(undefined)}
+              onEdit={() => openEdit(detailEmployee.id)}
+            />
+          ) : (
+          <>
           {office !== "all" && (
             <Card className={`${OFFICES[office].themeBg} border-0`}>
               <CardContent className="p-3 text-xs flex flex-wrap items-center gap-3">
@@ -381,9 +440,18 @@ export default function HRModule() {
                       <tr key={e.id} className="border-t border-slate-100 hover:bg-slate-50">
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
-                            <Avatar className="h-7 w-7"><AvatarFallback className="text-[10px]">{(e.firstName[0] || "") + (e.lastName[0] || "")}</AvatarFallback></Avatar>
+                            <Avatar className="h-7 w-7">
+                              {e.photoUrl && <AvatarImage src={e.photoUrl} alt={`${e.firstName} ${e.lastName}`} />}
+                              <AvatarFallback className="text-[10px]">{(e.firstName[0] || "") + (e.lastName[0] || "")}</AvatarFallback>
+                            </Avatar>
                             <div>
-                              <div className="font-medium">{e.firstName} {e.lastName}</div>
+                              <button
+                                type="button"
+                                onClick={() => openEmployeeDetail(e.id)}
+                                className="font-medium text-left hover:text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded-sm"
+                              >
+                                {e.firstName} {e.lastName}
+                              </button>
                               <div className="text-[10px] text-slate-500 font-mono">{e.code}</div>
                             </div>
                           </div>
@@ -408,6 +476,8 @@ export default function HRModule() {
               </table>
             </CardContent>
           </Card>
+          </>
+          )}
         </TabsContent>
 
         <TabsContent value="leave" className="mt-3"><LeaveManagement /></TabsContent>
@@ -626,6 +696,7 @@ export default function HRModule() {
                           {checked && <Check className="w-2.5 h-2.5 text-white" />}
                         </div>
                         <Avatar className="w-6 h-6 flex-shrink-0">
+                          {e.photoUrl && <AvatarImage src={e.photoUrl} alt={`${e.firstName} ${e.lastName}`} />}
                           <AvatarFallback className="text-[10px]">{e.firstName[0]}{e.lastName[0]}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
@@ -707,6 +778,329 @@ function KPI({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: 
       </CardContent>
     </Card>
   );
+}
+
+function EmployeeDetailPage({
+  employee,
+  manager,
+  loading,
+  punches,
+  leaves,
+  training,
+  assets,
+  disciplinary,
+  reviews,
+  onboarding,
+  letters,
+  onBack,
+  onEdit,
+}: {
+  employee: Employee;
+  manager?: Employee;
+  loading: boolean;
+  punches: any[];
+  leaves: any[];
+  training: any[];
+  assets: any[];
+  disciplinary: any[];
+  reviews: any[];
+  onboarding: any[];
+  letters: any[];
+  onBack: () => void;
+  onEdit: () => void;
+}) {
+  const cfg = OFFICES[employee.office || "dubai"];
+  const docs = employee.documents || [];
+  const dependents = employee.dependents || [];
+  const salary = employee.salary;
+  const recentPunches = punches.slice().sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp))).slice(0, 8);
+  const recentLeaves = leaves.slice().sort((a, b) => String(b.createdAt || b.fromDate).localeCompare(String(a.createdAt || a.fromDate))).slice(0, 6);
+
+  return (
+    <div className="space-y-4">
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          <div className={`bg-gradient-to-r ${cfg.themeBg} to-white p-4 sm:p-5`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-4">
+                <Avatar className="h-20 w-20 border-4 border-white shadow-sm">
+                  {employee.photoUrl && <AvatarImage src={employee.photoUrl} alt={`${employee.firstName} ${employee.lastName}`} />}
+                  <AvatarFallback className="text-lg">{employee.firstName[0]}{employee.lastName[0]}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-2xl font-bold leading-tight">{employee.firstName} {employee.lastName}</h2>
+                    <StatusBadge status={employee.status} />
+                    {loading && <Badge variant="outline">Loading full profile...</Badge>}
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">{employee.jobTitle} · {employee.department}</p>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                    <Badge variant="outline" className={cfg.themeBg + " border-transparent"}>{cfg.flag} {cfg.name}</Badge>
+                    <Badge variant="outline" className="font-mono">{employee.code}</Badge>
+                    {employee.workLocation && <Badge variant="outline">{employee.workLocation}</Badge>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={onBack}>
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </Button>
+                <Button size="sm" className="gap-1.5" onClick={onEdit}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MiniStat icon={<BriefcaseBusiness className="h-4 w-4" />} label="Joined" value={fmtDate(employee.joinDate)} />
+            <MiniStat icon={<Wallet className="h-4 w-4" />} label="Gross / month" value={formatMoney(grossSalary(salary), cfg.currency)} />
+            <MiniStat icon={<ShieldCheck className="h-4 w-4" />} label="Visa expiry" value={employee.visaExpiry || "Not recorded"} tone={expiryStatus(employee.visaExpiry)} />
+            <MiniStat icon={<Users className="h-4 w-4" />} label="Manager" value={manager ? `${manager.firstName} ${manager.lastName}` : "Not assigned"} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <div className="space-y-4 xl:col-span-2">
+          <DetailSection title="Personal Information" icon={<UserCircle className="h-4 w-4" />}>
+            <DetailGrid>
+              <DetailItem label="Full name" value={`${employee.firstName} ${employee.lastName}`} />
+              <DetailItem label="Arabic name" value={employee.arabicName} />
+              <DetailItem label="Gender" value={employee.gender} />
+              <DetailItem label="Date of birth" value={fmtDate(employee.dob)} />
+              <DetailItem label="Nationality" value={employee.nationality} />
+              <DetailItem label="Marital status" value={employee.maritalStatus} />
+              <DetailItem label="Email" value={employee.email} icon={<Mail className="h-3.5 w-3.5" />} />
+              <DetailItem label="Phone" value={employee.phone} icon={<Phone className="h-3.5 w-3.5" />} />
+              <DetailItem label="Emergency contact" value={employee.emergencyContactName} />
+              <DetailItem label="Emergency phone" value={employee.emergencyPhone} />
+              <DetailItem label="Home address" value={employee.homeAddress} wide icon={<MapPin className="h-3.5 w-3.5" />} />
+            </DetailGrid>
+          </DetailSection>
+
+          <DetailSection title="Employment Details" icon={<BriefcaseBusiness className="h-4 w-4" />}>
+            <DetailGrid>
+              <DetailItem label="Employee code" value={employee.code} />
+              <DetailItem label="Office" value={`${cfg.flag} ${cfg.name}`} />
+              <DetailItem label="Department" value={employee.department} />
+              <DetailItem label="Job title" value={employee.jobTitle} />
+              <DetailItem label="Work location" value={employee.workLocation} />
+              <DetailItem label="Contract type" value={employee.contractType} />
+              <DetailItem label="Join date" value={fmtDate(employee.joinDate)} />
+              <DetailItem label="Contract end" value={fmtDate(employee.contractEndDate)} />
+              <DetailItem label="Probation end" value={fmtDate(employee.probationEndDate)} />
+              <DetailItem label="End date" value={fmtDate(employee.endDate)} />
+              <DetailItem label="Assigned project" value={employee.assignedProjectId} />
+              <DetailItem label="Manager" value={manager ? `${manager.firstName} ${manager.lastName}` : undefined} />
+            </DetailGrid>
+          </DetailSection>
+
+          <DetailSection title="Identity & Government Documents" icon={<IdCard className="h-4 w-4" />}>
+            <div className="grid gap-2 md:grid-cols-2">
+              <DocTile label="Passport" number={employee.passportNo} expiry={employee.passportExpiry} />
+              <DocTile label="Emirates ID" number={employee.emiratesIdNo} expiry={employee.emiratesIdExpiry} />
+              <DocTile label="Visa" number={employee.visaNo} expiry={employee.visaExpiry} extra={employee.visaSponsor ? `Sponsor: ${employee.visaSponsor}` : undefined} />
+              <DocTile label="Labour card" number={employee.labourCardNo} expiry={employee.labourCardExpiry} />
+            </div>
+          </DetailSection>
+
+          <DetailSection title="Uploaded Documents" icon={<FileText className="h-4 w-4" />}>
+            {docs.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="text-left text-slate-500">
+                    <tr><th className="py-2">Type</th><th>Number</th><th>Issue</th><th>Expiry</th><th>File</th><th>Notes</th></tr>
+                  </thead>
+                  <tbody>
+                    {docs.map((d) => (
+                      <tr key={d.id} className="border-t">
+                        <td className="py-2 font-medium capitalize">{d.type.replace(/-/g, " ")}</td>
+                        <td>{d.number || "—"}</td>
+                        <td>{fmtDate(d.issueDate)}</td>
+                        <td><Badge className={`border ${expiryColorClass(expiryStatus(d.expiryDate))}`}>{d.expiryDate || "—"}</Badge></td>
+                        <td>{d.fileUrl ? <a className="text-blue-700 underline" href={d.fileUrl} target="_blank" rel="noreferrer">{d.fileName || "Open"}</a> : (d.fileName || "—")}</td>
+                        <td>{d.notes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <EmptyLine text="No uploaded documents on this profile." />}
+          </DetailSection>
+        </div>
+
+        <div className="space-y-4">
+          <DetailSection title="Salary Breakdown" icon={<Wallet className="h-4 w-4" />}>
+            <MoneyRow label="Basic" value={salary?.basic} currency={cfg.currency} />
+            <MoneyRow label="Housing" value={salary?.housing} currency={cfg.currency} />
+            <MoneyRow label="Transport" value={salary?.transport} currency={cfg.currency} />
+            <MoneyRow label="Food" value={salary?.food} currency={cfg.currency} />
+            <MoneyRow label="Other" value={salary?.other} currency={cfg.currency} />
+            <div className="mt-2 border-t pt-2">
+              <MoneyRow label="Gross monthly" value={grossSalary(salary)} currency={cfg.currency} strong />
+            </div>
+          </DetailSection>
+
+          <DetailSection title="Bank Details" icon={<Wallet className="h-4 w-4" />}>
+            <DetailGrid single>
+              <DetailItem label="Bank" value={employee.bank?.bankName} />
+              <DetailItem label="IBAN" value={employee.bank?.iban} />
+              <DetailItem label="Account no." value={employee.bank?.accountNo} />
+              <DetailItem label="SWIFT" value={employee.bank?.swift} />
+            </DetailGrid>
+          </DetailSection>
+
+          <DetailSection title="Dependents" icon={<Users className="h-4 w-4" />}>
+            {dependents.length ? dependents.map((d, i) => (
+              <div key={`${d.name}-${i}`} className="rounded-md border p-2 text-xs">
+                <div className="font-semibold">{d.name}</div>
+                <div className="text-slate-500 capitalize">{d.relation}{d.dob ? ` · ${fmtDate(d.dob)}` : ""}</div>
+                <div className="mt-1 text-slate-600">Passport: {d.passportNo || "—"}</div>
+                <div className="text-slate-600">Visa expiry: {d.visaExpiry || "—"}</div>
+              </div>
+            )) : <EmptyLine text="No dependents recorded." />}
+          </DetailSection>
+
+          <DetailSection title="HR Activity" icon={<History className="h-4 w-4" />}>
+            <ActivityCount label="Leave requests" value={leaves.length} />
+            <ActivityCount label="Training certificates" value={training.length} />
+            <ActivityCount label="Assigned assets" value={assets.length} />
+            <ActivityCount label="Disciplinary records" value={disciplinary.length} />
+            <ActivityCount label="Performance reviews" value={reviews.length} />
+            <ActivityCount label="Onboarding records" value={onboarding.length} />
+            <ActivityCount label="Issued letters" value={letters.length} />
+            <ActivityCount label="Attendance punches" value={punches.length} />
+          </DetailSection>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DetailSection title="Recent Leave" icon={<Plane className="h-4 w-4" />}>
+          {recentLeaves.length ? recentLeaves.map((l) => (
+            <TimelineRow key={l.id} title={`${l.type} · ${l.status}`} meta={`${fmtDate(l.fromDate)} to ${fmtDate(l.toDate)}`} note={l.note} />
+          )) : <EmptyLine text="No leave records." />}
+        </DetailSection>
+
+        <DetailSection title="Recent Attendance Punches" icon={<Activity className="h-4 w-4" />}>
+          {recentPunches.length ? recentPunches.map((p) => (
+            <TimelineRow key={p.id} title={`${String(p.type).toUpperCase()} · ${p.geofenceCheck || "recorded"}`} meta={fmtDateTime(p.timestamp)} note={p.note || p.device} />
+          )) : <EmptyLine text="No attendance punches." />}
+        </DetailSection>
+
+        <DetailSection title="Training & Certifications" icon={<GraduationCap className="h-4 w-4" />}>
+          {training.length ? training.map((t) => (
+            <TimelineRow key={t.id} title={t.name} meta={`${t.provider || "Provider not set"} · ${t.category}`} note={t.expiryDate ? `Expires ${fmtDate(t.expiryDate)}` : t.notes} />
+          )) : <EmptyLine text="No training records." />}
+        </DetailSection>
+
+        <DetailSection title="Assets & Letters" icon={<Laptop className="h-4 w-4" />}>
+          {[...assets.map((a) => ({ id: `asset-${a.id}`, title: `${a.type} · ${a.identifier}`, meta: a.assignedDate, note: a.description })),
+            ...letters.map((l) => ({ id: `letter-${l.id}`, title: `${l.type} · ${l.reference}`, meta: l.issueDate, note: l.recipient || l.requestStatus }))].length
+            ? [...assets.map((a) => ({ id: `asset-${a.id}`, title: `${a.type} · ${a.identifier}`, meta: a.assignedDate, note: a.description })),
+              ...letters.map((l) => ({ id: `letter-${l.id}`, title: `${l.type} · ${l.reference}`, meta: l.issueDate, note: l.recipient || l.requestStatus }))].map((r) => (
+                <TimelineRow key={r.id} title={r.title} meta={fmtDate(r.meta)} note={r.note} />
+              ))
+            : <EmptyLine text="No assets or letters recorded." />}
+        </DetailSection>
+      </div>
+    </div>
+  );
+}
+
+function DetailSection({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">{icon}{title}</h3>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DetailGrid({ children, single = false }: { children: React.ReactNode; single?: boolean }) {
+  return <div className={`grid gap-2 ${single ? "grid-cols-1" : "sm:grid-cols-2"}`}>{children}</div>;
+}
+
+function DetailItem({ label, value, icon, wide = false }: { label: string; value?: React.ReactNode; icon?: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className={`rounded-md border border-slate-100 bg-slate-50/60 px-3 py-2 ${wide ? "sm:col-span-2" : ""}`}>
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500">{icon}{label}</div>
+      <div className="mt-0.5 break-words text-sm font-medium text-slate-900">{value || "—"}</div>
+    </div>
+  );
+}
+
+function MiniStat({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone?: string }) {
+  const toneClass = tone && ["critical", "expired", "warning"].includes(tone) ? expiryColorClass(tone as any) : "bg-white text-slate-700 border-slate-200";
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide opacity-75">{icon}{label}</div>
+      <div className="mt-1 truncate text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function DocTile({ label, number, expiry, extra }: { label: string; number?: string; expiry?: string; extra?: string }) {
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold">{label}</div>
+          <div className="mt-1 font-mono text-xs text-slate-600">{number || "No number recorded"}</div>
+          {extra && <div className="mt-1 text-xs text-slate-500">{extra}</div>}
+        </div>
+        <Badge className={`border ${expiryColorClass(expiryStatus(expiry))}`}>{expiry || "—"}</Badge>
+      </div>
+    </div>
+  );
+}
+
+function MoneyRow({ label, value, currency, strong }: { label: string; value?: number; currency: "AED" | "EGP"; strong?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between py-1 text-sm ${strong ? "font-bold" : ""}`}>
+      <span className="text-slate-600">{label}</span>
+      <span className="font-mono">{formatMoney(Number(value || 0), currency)}</span>
+    </div>
+  );
+}
+
+function ActivityCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between border-b border-slate-100 py-1.5 last:border-0">
+      <span className="text-sm text-slate-600">{label}</span>
+      <Badge variant="outline">{value}</Badge>
+    </div>
+  );
+}
+
+function TimelineRow({ title, meta, note }: { title: string; meta?: string; note?: string }) {
+  return (
+    <div className="border-b border-slate-100 py-2 last:border-0">
+      <div className="text-sm font-medium">{title}</div>
+      {meta && <div className="text-xs text-slate-500">{meta}</div>}
+      {note && <div className="mt-1 text-xs text-slate-600">{note}</div>}
+    </div>
+  );
+}
+
+function EmptyLine({ text }: { text: string }) {
+  return <p className="rounded-md border border-dashed border-slate-200 p-3 text-sm text-slate-500">{text}</p>;
+}
+
+function fmtDate(value?: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtDateTime(value?: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function StatusBadge({ status }: { status: Employee["status"] }) {

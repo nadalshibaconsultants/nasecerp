@@ -102,9 +102,7 @@ import {
 } from "@/lib/stores";
 import { newId, useCollection } from "@/lib/store";
 import { useLocation } from "wouter";
-import OfficeSwitcher, {
-  useActiveOffice,
-} from "@/components/office/OfficeSwitcher";
+import { useActiveOffice } from "@/components/office/OfficeSwitcher";
 import FinanceRenewalCalendar from "@/components/calendars/FinanceRenewalCalendar";
 import FinancialStatements from "@/components/finance/FinancialStatements";
 import NewJournalDialog from "@/components/finance/NewJournalDialog";
@@ -339,6 +337,25 @@ export default function FinanceModule() {
 
   return (
     <div className="space-y-5">
+      <Tabs defaultValue="overview" className="space-y-5">
+        <div className="overflow-x-auto rounded-lg bg-muted/60 p-1">
+          <TabsList className="grid h-auto min-w-[1100px] grid-cols-2 gap-1 bg-transparent p-0 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 2xl:grid-cols-10">
+            {FINANCE_TABS.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="h-11 justify-start gap-2 rounded-md px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{tab.label}</span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
+
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -369,21 +386,6 @@ export default function FinanceModule() {
           </Button>
         </div>
       </div>
-
-      <OfficeSwitcher
-        active={officeFilter}
-        onChange={setOfficeFilter}
-        counts={{
-          all: arInvoices.length + apBills.length,
-          dubai:
-            arInvoices.filter(i => i.office === "dubai").length +
-            apBills.filter(b => b.office === "dubai").length,
-          cairo:
-            arInvoices.filter(i => i.office === "cairo").length +
-            apBills.filter(b => b.office === "cairo").length,
-        }}
-        allLabel="Both offices combined"
-      />
 
       <FinanceRenewalCalendar />
 
@@ -488,25 +490,6 @@ export default function FinanceModule() {
           tone="primary"
         />
       </div>
-
-      <Tabs defaultValue="overview" className="space-y-4">
-        <div className="overflow-x-auto">
-          <TabsList className="grid h-auto min-w-[1100px] grid-cols-2 gap-1 bg-muted/60 p-1 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 2xl:grid-cols-10">
-            {FINANCE_TABS.map(tab => {
-              const Icon = tab.icon;
-              return (
-                <TabsTrigger
-                  key={tab.value}
-                  value={tab.value}
-                  className="h-11 justify-start gap-2 rounded-md px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{tab.label}</span>
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </div>
 
         <TabsContent value="overview">
           <OverviewTab
